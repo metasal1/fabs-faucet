@@ -16,7 +16,7 @@ const wallet = Keypair.fromSecretKey(WALLET_PRIVATE_KEY);
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 const CLAIMS_FILE = 'claims.json';
-const CLAIM_COOLDOWN = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+const CLAIM_COOLDOWN = 4 * 60 * 60 * 1000; // 24 hours in milliseconds
 
 // Function to load claims
 const loadClaims = () => {
@@ -62,7 +62,7 @@ bot.command('claim', async (ctx) => {
             const lastClaimTime = new Date(claims[userId].timestamp).getTime();
             const currentTime = new Date().getTime();
             const timeRemaining = CLAIM_COOLDOWN - (currentTime - lastClaimTime);
-            return ctx.reply(`You can claim again in ${formatTimeRemaining(timeRemaining)}.`);
+            return ctx.reply(`You can only claim every 4 hours! Please try again in ${formatTimeRemaining(timeRemaining)}.`);
         }
 
         const input = ctx.message.text.split(' ');
@@ -147,7 +147,7 @@ bot.command('claim', async (ctx) => {
             ctx.chat.id,
             loadingMessage.message_id,
             null,
-            `Tokens claimed successfully! Transaction signature: https://solana.fm/tx/${signature}`
+            `FABS claimed successfully! Transaction signature: https://solana.fm/tx/${signature}`
         );
     } catch (error) {
         console.error('Error claiming tokens:', error);
@@ -157,23 +157,24 @@ bot.command('claim', async (ctx) => {
                 ctx.chat.id,
                 loadingMessage.message_id,
                 null,
-                'An error occurred while claiming tokens. Please try again later.'
+                'An error occurred while claiming FABS. Please try again later.'
             ).catch(console.error);
         } else {
-            ctx.reply('An error occurred while claiming tokens. Please try again later.');
+            ctx.reply('An error occurred while claiming FABS. Please try again later.');
         }
     }
 });
 
-bot.launch().then(() => {
-    console.log('Bot started successfully');
 
-    const CHAT_ID = process.env.CHAT_ID || 'YOUR_GROUP_CHAT_ID';
+console.log('Bot started successfully');
 
-    bot.telegram.sendMessage(CHAT_ID, 'The claim bot is now online and ready to process requests!')
-        .then(() => console.log('Startup message sent to group'))
-        .catch(error => console.error('Failed to send startup message:', error));
-});
+const CHAT_ID = process.env.CHAT_ID || '-4246706171';
+
+bot.telegram.sendMessage(CHAT_ID, 'The FABS Faucet Bot is now online and ready to process requests!')
+    .then(() => console.log('Startup message sent to group'))
+    .catch(error => console.error('Failed to send startup message:', error));
+
+bot.launch()
 
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
