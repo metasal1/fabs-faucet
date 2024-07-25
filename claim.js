@@ -2,6 +2,7 @@ import { Telegraf } from 'telegraf';
 import { Connection, PublicKey, Keypair, Transaction, ComputeBudgetProgram } from '@solana/web3.js';
 import { createTransferInstruction, getOrCreateAssociatedTokenAccount, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import dotenv from 'dotenv';
+import fs from 'fs-extra';
 
 dotenv.config();
 
@@ -14,6 +15,37 @@ const wallet = Keypair.fromSecretKey(WALLET_PRIVATE_KEY);
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+const CLAIMS_FILE = 'claims.json';
+const CLAIM_COOLDOWN = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+
+// Function to load claims
+const loadClaims = () => {
+    if (fs.existsSync(CLAIMS_FILE)) {
+        return fs.readJSONSync(CLAIMS_FILE);
+    }
+    return {};
+};
+
+// Function to save claims
+const saveClaims = (claims) => {
+    fs.writeJSONSync(CLAIMS_FILE, claims);
+};
+
+// Function to check if user can claim
+const canUserClaim = (userId, claims) => {
+    if (!claims[userId]) return true;
+    const lastClaimTime = new Date(claims[userId].timestamp).getTime();
+    const currentTime = new Date().getTime();
+    return (currentTime - lastClaimTime) >= CLAIM_COOLDOWN;
+};
+
+// Function to format time remaining
+const formatTimeRemaining = (milliseconds) => {
+    const hours = Math.floor(milliseconds / (60 * 60 * 1000));
+    const minutes = Math.floor((milliseconds % (60 * 60 * 1000)) / (60 * 1000));
+    return `${hours} hours and ${minutes} minutes`;
+};
+
 console.log('Bot starting...');
 
 bot.command('claim', async (ctx) => {
@@ -23,6 +55,16 @@ bot.command('claim', async (ctx) => {
     let isLoading = true;
 
     try {
+        const userId = ctx.from.id.toString();
+        const claims = loadClaims();
+
+        if (!canUserClaim(userId, claims)) {
+            const lastClaimTime = new Date(claims[userId].timestamp).getTime();
+            const currentTime = new Date().getTime();
+            const timeRemaining = CLAIM_COOLDOWN - (currentTime - lastClaimTime);
+            return ctx.reply(`You can claim again in ${formatTimeRemaining(timeRemaining)}.`);
+        }
+
         const input = ctx.message.text.split(' ');
         if (input.length !== 2) {
             return ctx.reply('Please use the command in this format: /claim <Solana Address>');
@@ -93,6 +135,14 @@ bot.command('claim', async (ctx) => {
 
         isLoading = false;
 
+        // Record the claim
+        claims[userId] = {
+            address: recipientAddressString,
+            timestamp: new Date().toISOString(),
+            signature: signature
+        };
+        saveClaims(claims);
+
         await ctx.telegram.editMessageText(
             ctx.chat.id,
             loadingMessage.message_id,
@@ -115,15 +165,15 @@ bot.command('claim', async (ctx) => {
     }
 });
 
-console.log('Bot started successfully');
+bot.launch().then(() => {
+    console.log('Bot started successfully');
 
-// Replace YOUR_GROUP_CHAT_ID with the actual chat ID of your group
-const CHAT_ID = process.env.CHAT_ID || '-4246706171';
+    const CHAT_ID = process.env.CHAT_ID || 'YOUR_GROUP_CHAT_ID';
 
-bot.telegram.sendMessage(CHAT_ID, 'The FABS Faucet Bot is now online and ready to process requests!')
-    .then(() => console.log('Startup message sent to group'))
-    .catch(error => console.error('Failed to send startup message:', error));
+    bot.telegram.sendMessage(CHAT_ID, 'The claim bot is now online and ready to process requests!')
+        .then(() => console.log('Startup message sent to group'))
+        .catch(error => console.error('Failed to send startup message:', error));
+});
 
-bot.launch()
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
