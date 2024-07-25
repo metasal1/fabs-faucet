@@ -14,6 +14,7 @@
     "@solana/spl-token": "^0.4.8",
     "@solana/web3.js": "^1.95.1",
     "dotenv": "^16.4.5",
+    "fs-extra": "^11.2.0",
     "node-telegram-bot-api": "^0.66.0",
     "telegraf": "^4.16.3"
   }
