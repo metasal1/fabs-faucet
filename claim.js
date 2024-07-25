@@ -170,11 +170,11 @@ console.log('Bot started successfully');
 
 const CHAT_ID = process.env.CHAT_ID || '-4246706171';
 
-bot.telegram.sendMessage(CHAT_ID, 'The FABS Faucet Bot is now online and ready to process requests!')
+bot.telegram.sendMessage(CHAT_ID, '🏃‍♂️‍➡️  FABS Faucet Bot is now online and ready to run! 🏃‍♂️‍➡️')
     .then(() => console.log('Startup message sent to group'))
     .catch(error => console.error('Failed to send startup message:', error));
 
-bot.launch()
+bot.launch().then(() => console.log('👋 Going for a 🏃‍♂️. Back soon!'));
 
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
