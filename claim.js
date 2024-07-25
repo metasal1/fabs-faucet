@@ -14,7 +14,8 @@ const wallet = Keypair.fromSecretKey(WALLET_PRIVATE_KEY);
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-console.log('bot started');
+console.log('Bot starting...');
+
 bot.command('claim', async (ctx) => {
     const loadingSymbols = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
     let loadingIndex = 0;
@@ -45,16 +46,15 @@ bot.command('claim', async (ctx) => {
                     loadingMessage.message_id,
                     null,
                     `Processing claim ${loadingSymbols[loadingIndex]} Please wait...`
-                ).catch(console.error); // Catch any error from edit message
+                ).catch(console.error);
                 loadingIndex = (loadingIndex + 1) % loadingSymbols.length;
                 await delay(100);
             }
         };
 
-        // Start the loader
         updateLoader();
 
-        const amount = 6900000n; // Adjust based on your token's decimals
+        const amount = 6900000n;
 
         const fromTokenAccount = await getOrCreateAssociatedTokenAccount(
             connection,
@@ -72,13 +72,11 @@ bot.command('claim', async (ctx) => {
 
         const transaction = new Transaction();
 
-        // Add a priority fee instruction
         const priorityFeeInstruction = ComputeBudgetProgram.setComputeUnitPrice({
-            microLamports: 10000 // Adjust this value to set your desired fee
+            microLamports: 10000
         });
         transaction.add(priorityFeeInstruction);
 
-        // Add the transfer instruction
         const transferInstruction = createTransferInstruction(
             fromTokenAccount.address,
             toTokenAccount.address,
@@ -93,7 +91,6 @@ bot.command('claim', async (ctx) => {
 
         await connection.confirmTransaction(signature);
 
-        // Stop the loader
         isLoading = false;
 
         await ctx.telegram.editMessageText(
@@ -104,21 +101,29 @@ bot.command('claim', async (ctx) => {
         );
     } catch (error) {
         console.error('Error claiming tokens:', error);
-        isLoading = false; // Stop the loader
+        isLoading = false;
         if (loadingMessage) {
             await ctx.telegram.editMessageText(
                 ctx.chat.id,
                 loadingMessage.message_id,
                 null,
                 'An error occurred while claiming tokens. Please try again later.'
-            ).catch(console.error); // Catch any error from edit message
+            ).catch(console.error);
         } else {
             ctx.reply('An error occurred while claiming tokens. Please try again later.');
         }
     }
 });
 
-bot.launch();
+console.log('Bot started successfully');
 
+// Replace YOUR_GROUP_CHAT_ID with the actual chat ID of your group
+const CHAT_ID = process.env.CHAT_ID || '-4246706171';
+
+bot.telegram.sendMessage(CHAT_ID, 'The FABS Faucet Bot is now online and ready to process requests!')
+    .then(() => console.log('Startup message sent to group'))
+    .catch(error => console.error('Failed to send startup message:', error));
+
+bot.launch()
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
