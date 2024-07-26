@@ -128,7 +128,7 @@ bot.command('claim', async (ctx) => {
         const transaction = new Transaction();
 
         const priorityFeeInstruction = ComputeBudgetProgram.setComputeUnitPrice({
-            microLamports: 6000
+            microLamports: 10000
         });
         transaction.add(priorityFeeInstruction);
 
