@@ -49,7 +49,7 @@ const formatTimeRemaining = (milliseconds) => {
 console.log('Bot starting...');
 
 bot.command('claim', async (ctx) => {
-    const loadingSymbols = ['1', '2', '3', '69', '420'];
+    const loadingSymbols = ['.', '..', '...', '....', '.....'];
     let loadingIndex = 0;
     let loadingMessage;
     let isLoading = true;
