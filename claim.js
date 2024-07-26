@@ -96,7 +96,10 @@ bot.command('claim', async (ctx) => {
 
         updateLoader();
 
-        const amount = 6900000n;
+        const minAmount = 6900000n;
+        const maxAmount = 690000000n;
+        const amount = BigInt(Math.floor(Math.random() * (maxAmount - minAmount + 1) + minAmount));
+        // const amount = 6900000n;
 
         const fromTokenAccount = await getOrCreateAssociatedTokenAccount(
             connection,
