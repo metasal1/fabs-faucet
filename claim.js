@@ -49,7 +49,7 @@ const formatTimeRemaining = (milliseconds) => {
 console.log('Bot starting...');
 
 bot.command('claim', async (ctx) => {
-    const loadingSymbols = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+    const loadingSymbols = ['1', '2', '3', '69', '420'];
     let loadingIndex = 0;
     let loadingMessage;
     let isLoading = true;
@@ -96,9 +96,19 @@ bot.command('claim', async (ctx) => {
 
         updateLoader();
 
-        const minAmount = 6900000n;
-        const maxAmount = 690000000n;
-        const amount = BigInt(Math.floor(Math.random() * (maxAmount - minAmount + 1) + minAmount));
+        const minAmount = 6_900_000_0000;
+        const maxAmount = 420_000_000;
+        const step = 1_000_000; // This is our rounding step (1 million)
+
+        // Calculate the range in terms of steps
+        const range = (maxAmount - minAmount) / step;
+
+        // Generate a random number of steps
+        const randomSteps = Math.floor(Math.random() * Number(range));
+
+        // Calculate the final amount
+        const amount = minAmount + (randomSteps * step);
+
         // const amount = 6900000n;
 
         const fromTokenAccount = await getOrCreateAssociatedTokenAccount(
@@ -118,7 +128,7 @@ bot.command('claim', async (ctx) => {
         const transaction = new Transaction();
 
         const priorityFeeInstruction = ComputeBudgetProgram.setComputeUnitPrice({
-            microLamports: 10000
+            microLamports: 6000
         });
         transaction.add(priorityFeeInstruction);
 
@@ -150,7 +160,7 @@ bot.command('claim', async (ctx) => {
             ctx.chat.id,
             loadingMessage.message_id,
             null,
-            `FABS claimed successfully! Transaction signature: https://solana.fm/tx/${signature}`
+            `${amount / 100000} FABS claimed successfully! Transaction signature: https://solana.fm/tx/${signature}`
         );
     } catch (error) {
         console.error('Error claiming tokens:', error);
