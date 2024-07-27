@@ -139,6 +139,34 @@ function calculateTokenSupply(rawSupply, decimals) {
     });
 }
 
+bot.command('holders', async (ctx) => {
+    const holders = await getHolders();
+    ctx.reply(`The total supply of FABS is ${holders} FABS.`);
+});
+const getHolders = async () => {
+    const myHeaders = new Headers();
+    myHeaders.append("Content-Type", "application/json");
+
+    const raw = JSON.stringify({
+        "mintAddress": process.env.MINT,
+    });
+
+    const requestOptions = {
+        method: "POST",
+        headers: myHeaders,
+        body: raw,
+        redirect: "follow"
+    };
+
+    const reply = await fetch('https://tokenhodlers.vercel.app/api/getTokenHolders', requestOptions)
+    const data = await reply.json()
+    const totalHolders = data.length;
+    const zeroBois = data.filter(holder => holder.balance < 1).length;
+    const millionaires = data.filter(holder => holder.balance > 1_000_000_000).length;
+    const billionares = data.filter(holder => holder.balance > 1_000_000_000_000_000).length;
+    console.log(`Total Bank Accounts =  ${totalHolders}\nEmpty Accounts = ${zeroBois}\nMillionaires = ${millionaires}\nBillionaires = ${billionares}`);
+}
+
 bot.command('claim', async (ctx) => {
     const loadingSymbols = ['.', '..', '...', '....', '.....'];
     let loadingIndex = 0;
@@ -279,6 +307,7 @@ bot.telegram.sendMessage(CHAT_ID, '🏃‍♂️‍➡️  FABS Faucet Bot is no
         console.log('Startup message sent to group')
         getSupply();
         getAssetsByOwner();
+        getHolders();
     }
     )
     .catch(error => console.error('Failed to send startup message:', error));
