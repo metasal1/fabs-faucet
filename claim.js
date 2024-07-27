@@ -83,6 +83,10 @@ bot.command('balance', async (ctx) => {
 bot.command('ca', async (ctx) => {
     ctx.reply(`FABS fabs.fun\n${process.env.MINT}`);
 });
+
+bot.command('dao', async (ctx) => {
+    ctx.reply(`DAO\nhttps://app.realms.today/dao/FABS`);
+});
 // Function to load claims
 const loadClaims = () => {
     if (fs.existsSync(CLAIMS_FILE)) {
