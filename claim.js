@@ -3,20 +3,82 @@ import { Connection, PublicKey, Keypair, Transaction, ComputeBudgetProgram } fro
 import { createTransferInstruction, getOrCreateAssociatedTokenAccount, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import dotenv from 'dotenv';
 import fs from 'fs-extra';
+import { get } from 'http';
 
 dotenv.config();
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const connection = new Connection(process.env.RPC, 'confirmed');
 
-const MINT_ADDRESS = new PublicKey('ErbakSHZWeLnq1hsqFvNz8FvxSzggrfyNGB6TEGSSgNE');
+const MINT_ADDRESS = new PublicKey(process.env.MINT);
 const WALLET_PRIVATE_KEY = Uint8Array.from(JSON.parse(process.env.WALLET_PRIVATE_KEY));
 const wallet = Keypair.fromSecretKey(WALLET_PRIVATE_KEY);
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 const CLAIMS_FILE = 'claims.json';
-const CLAIM_COOLDOWN = 4 * 60 * 60 * 1000; // 24 hours in milliseconds
+const CLAIM_COOLDOWN = (process.env.COOLDOWN || 4) * 60 * 60 * 1000; // 24 hours in milliseconds
+
+const getSupply = async () => {
+    const myHeaders = new Headers();
+    myHeaders.append("Content-Type", "application/json");
+
+    const raw = JSON.stringify({
+        "jsonrpc": "2.0",
+        "id": process.env.RPC,
+        "method": "getAsset",
+        "params": {
+            "id": process.env.MINT,
+            "options": {
+                "showFungible": false,
+                "showInscription": false
+            }
+        }
+    });
+
+    const requestOptions = {
+        method: "POST",
+        headers: myHeaders,
+        body: raw,
+        redirect: "follow"
+    };
+
+    const reply = await fetch(process.env.RPC, requestOptions)
+    const data = await reply.json()
+    const supply = calculateTokenSupply(data.result.token_info.supply, data.result.token_info.decimals);
+    console.log(`The total supply of FABS is ${supply} FABS.`);
+    return supply;
+}
+const getAssetsByOwner = async () => {
+    const response = await fetch(process.env.RPC, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: 'my-id',
+            method: 'getAssetsByOwner',
+            params: {
+                ownerAddress: process.env.PK,
+                page: 1, // Starts at 1
+                limit: 1000,
+                displayOptions: {
+                    showFungible: true //return both fungible and non-fungible tokens
+                }
+            },
+        }),
+    });
+    const { result } = await response.json();
+    const item = result.items.find(item => item.id === process.env.MINT);
+    const balance = calculateTokenSupply(item.token_info.balance, item.token_info.decimals);
+    console.log(`There is currently ${balance} FABS in the Bank.`);
+    return balance;
+};
+bot.command('balance', async (ctx) => {
+    const balance = getAssetsByOwner();
+    ctx.reply(`There is currently ${balance} FABS in the Bank.`);
+});
 
 // Function to load claims
 const loadClaims = () => {
@@ -47,6 +109,28 @@ const formatTimeRemaining = (milliseconds) => {
 };
 
 console.log('Bot starting...');
+
+bot.command('supply', async (ctx) => {
+    getSupply();
+    ctx.reply(`The total supply of FABS is ${supply} FABS.`);
+});
+
+function calculateTokenSupply(rawSupply, decimals) {
+    // Convert rawSupply to BigInt to handle large numbers
+    const supply = BigInt(rawSupply);
+
+    // Calculate divisor (10 raised to the power of decimals)
+    const divisor = BigInt(10 ** decimals);
+
+    // Perform the division
+    const result = Number(supply) / Number(divisor);
+
+    // Round to 0 decimal places and format with commas
+    return result.toLocaleString('en-US', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+    });
+}
 
 bot.command('claim', async (ctx) => {
     const loadingSymbols = ['.', '..', '...', '....', '.....'];
@@ -87,7 +171,7 @@ bot.command('claim', async (ctx) => {
                     ctx.chat.id,
                     loadingMessage.message_id,
                     null,
-                    `Processing claim ${loadingSymbols[loadingIndex]} Please wait...`
+                    `Processing claim${loadingSymbols[loadingIndex]} Please wait...`
                 ).catch(console.error);
                 loadingIndex = (loadingIndex + 1) % loadingSymbols.length;
                 await delay(100);
@@ -96,8 +180,8 @@ bot.command('claim', async (ctx) => {
 
         updateLoader();
 
-        const minAmount = 6_900_000_0000;
-        const maxAmount = 420_000_000;
+        const minAmount = process.env.MIN * 1000 || 690_000;
+        const maxAmount = process.env.MAX * 1000 || 69_000_000;
         const step = 1_000_000; // This is our rounding step (1 million)
 
         // Calculate the range in terms of steps
@@ -160,7 +244,7 @@ bot.command('claim', async (ctx) => {
             ctx.chat.id,
             loadingMessage.message_id,
             null,
-            `${amount / 100000} FABS claimed successfully! Transaction signature: https://solana.fm/tx/${signature}`
+            `${amount / 100000} FABS claimed successfully!\nTransaction signature: https://solana.fm/tx/${signature}`
         );
     } catch (error) {
         console.error('Error claiming tokens:', error);
@@ -170,7 +254,7 @@ bot.command('claim', async (ctx) => {
                 ctx.chat.id,
                 loadingMessage.message_id,
                 null,
-                'An error occurred while claiming FABS. Please try again later.'
+                'An error occurred while claiming FABS.\nPlease try again later.\nRemember - You MUST have at least 1 FABS in your wallet to claim more.'
             ).catch(console.error);
         } else {
             ctx.reply('An error occurred while claiming FABS. Please try again later.');
@@ -178,14 +262,20 @@ bot.command('claim', async (ctx) => {
     }
 });
 
-
 console.log('Bot started successfully');
 
 const CHAT_ID = process.env.CHAT_ID || '-4246706171';
 
+
 bot.telegram.sendMessage(CHAT_ID, '🏃‍♂️‍➡️  FABS Faucet Bot is now online and ready to run! 🏃‍♂️‍➡️')
-    .then(() => console.log('Startup message sent to group'))
+    .then(() => {
+        console.log('Startup message sent to group')
+        getSupply();
+        getAssetsByOwner();
+    }
+    )
     .catch(error => console.error('Failed to send startup message:', error));
+
 
 bot.launch().then(() => console.log('👋 Going for a 🏃‍♂️. Back soon!'));
 
