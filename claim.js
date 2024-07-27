@@ -76,7 +76,7 @@ const getAssetsByOwner = async () => {
     return balance;
 };
 bot.command('balance', async (ctx) => {
-    const balance = getAssetsByOwner();
+    const balance = await getAssetsByOwner();
     ctx.reply(`There is currently ${balance} FABS in the Bank.`);
 });
 
