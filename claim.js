@@ -118,8 +118,8 @@ const formatTimeRemaining = (milliseconds) => {
 console.log('Bot starting...');
 
 bot.command('supply', async (ctx) => {
-    getSupply();
-    ctx.reply(`The total supply of FABS is ${supply} FABS.`);
+    const reply = await getSupply();
+    ctx.reply(reply)
 });
 
 function calculateTokenSupply(rawSupply, decimals) {
@@ -164,7 +164,9 @@ const getHolders = async () => {
     const zeroBois = data.filter(holder => holder.balance < 1).length;
     const millionaires = data.filter(holder => holder.balance > 1_000_000_000).length;
     const billionares = data.filter(holder => holder.balance > 1_000_000_000_000_000).length;
-    console.log(`Total Bank Accounts =  ${totalHolders}\nEmpty Accounts = ${zeroBois}\nMillionaires = ${millionaires}\nBillionaires = ${billionares}`);
+    const response = `Total Bank Accounts =  ${totalHolders}\nEmpty Accounts = ${zeroBois}\nMillionaires = ${millionaires}\nBillionaires = ${billionares}`;
+    console.log(response);
+    return response;
 }
 
 bot.command('claim', async (ctx) => {
