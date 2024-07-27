@@ -10,7 +10,7 @@ dotenv.config();
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const connection = new Connection(process.env.RPC, 'confirmed');
 
-const MINT_ADDRESS = new PublicKey(process.env.PK);
+const MINT_ADDRESS = new PublicKey(process.env.MINT);
 const WALLET_PRIVATE_KEY = Uint8Array.from(JSON.parse(process.env.WALLET_PRIVATE_KEY));
 const wallet = Keypair.fromSecretKey(WALLET_PRIVATE_KEY);
 
@@ -80,6 +80,9 @@ bot.command('balance', async (ctx) => {
     ctx.reply(`There is currently ${balance} FABS in the Bank.`);
 });
 
+bot.command('ca', async (ctx) => {
+    ctx.reply(`FABS fabs.fun\n${process.env.MINT}`);
+});
 // Function to load claims
 const loadClaims = () => {
     if (fs.existsSync(CLAIMS_FILE)) {
