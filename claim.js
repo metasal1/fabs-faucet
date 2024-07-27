@@ -10,7 +10,7 @@ dotenv.config();
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const connection = new Connection(process.env.RPC, 'confirmed');
 
-const MINT_ADDRESS = new PublicKey(process.env.MINT);
+const MINT_ADDRESS = new PublicKey(process.env.PK);
 const WALLET_PRIVATE_KEY = Uint8Array.from(JSON.parse(process.env.WALLET_PRIVATE_KEY));
 const wallet = Keypair.fromSecretKey(WALLET_PRIVATE_KEY);
 
