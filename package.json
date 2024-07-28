@@ -17,5 +17,9 @@
     "fs-extra": "^11.2.0",
     "node-telegram-bot-api": "^0.66.0",
     "telegraf": "^4.16.3"
+  },
+  "devDependencies": {
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.4"
   }
 }

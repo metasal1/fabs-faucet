@@ -2,7 +2,7 @@ import { Telegraf } from 'telegraf';
 // import * as tg from 'node-telegram-bot-api';
 import { Connection, PublicKey, Keypair, Transaction, ComputeBudgetProgram, clusterApiUrl } from '@solana/web3.js';
 import { createTransferInstruction, getOrCreateAssociatedTokenAccount, TOKEN_PROGRAM_ID } from '@solana/spl-token';
-import dotenv from 'dotenv';
+import * as dotenv from 'dotenv';
 import fs from 'fs-extra';
 
 dotenv.config();
@@ -70,7 +70,7 @@ const getSupply = async () => {
     return supply;
 }
 const getAssetsByOwner = async () => {
-    const response = await fetch(process.env.RPC, {
+    const response = await fetch(process.env.RPC || clusterApiUrl('mainnet-beta'), {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -136,8 +136,6 @@ const formatTimeRemaining = (milliseconds) => {
     const minutes = Math.floor((milliseconds % (60 * 60 * 1000)) / (60 * 1000));
     return `${hours} hours and ${minutes} minutes`;
 };
-
-console.log('Bot starting...');
 
 bot.command('supply', async (ctx) => {
     const reply = await getSupply();
@@ -320,8 +318,6 @@ bot.command('claim', async (ctx) => {
     }
 });
 
-console.log('Bot started successfully');
-
 bot.telegram.sendMessage(CHAT_ID, '🏦 FABS Bank is now open for business! 🏦')
     .then(() => {
         console.log('Startup message sent to group')
@@ -333,8 +329,44 @@ bot.telegram.sendMessage(CHAT_ID, '🏦 FABS Bank is now open for business! 🏦
     )
     .catch(error => console.error('Failed to send startup message:', error));
 
+bot.launch().then(() => {
+    console.log('Bot starting...');
+    console.log('Bot started successfully');
 
-bot.launch().then(() => console.log('👋 Going for a 🏃‍♂️. Back soon!'));
+});
 
-process.once('SIGINT', () => bot.stop('SIGINT'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));
+async function sendExitMessage() {
+    const exitMessage = `👋 FABS Bank is temporarily closed. We'll be back soon!`;
+    try {
+        await bot.telegram.sendMessage(CHAT_ID, exitMessage);
+        console.log('Exit message sent successfully');
+    } catch (error) {
+        console.error('Failed to send exit message:', error);
+    }
+}
+// Add this near the end of your file, after bot.launch()
+
+// Uncaught exception handler
+process.on('uncaughtException', async (error) => {
+    console.error('Uncaught Exception:', error);
+    await sendExitMessage();
+    process.exit(1);
+});
+
+// Unhandled rejection handler
+process.on('unhandledRejection', async (reason, promise) => {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+    await sendExitMessage();
+    process.exit(1);
+});
+
+// Modify your existing SIGINT and SIGTERM handlers
+process.once('SIGINT', async () => {
+    await sendExitMessage();
+    bot.stop('SIGINT');
+});
+
+process.once('SIGTERM', async () => {
+    await sendExitMessage();
+    bot.stop('SIGTERM');
+});
