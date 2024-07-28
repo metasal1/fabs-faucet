@@ -1,23 +1,44 @@
 import { Telegraf } from 'telegraf';
-import { Connection, PublicKey, Keypair, Transaction, ComputeBudgetProgram } from '@solana/web3.js';
+// import * as tg from 'node-telegram-bot-api';
+import { Connection, PublicKey, Keypair, Transaction, ComputeBudgetProgram, clusterApiUrl } from '@solana/web3.js';
 import { createTransferInstruction, getOrCreateAssociatedTokenAccount, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import dotenv from 'dotenv';
 import fs from 'fs-extra';
-import { get } from 'http';
 
 dotenv.config();
 
-const bot = new Telegraf(process.env.BOT_TOKEN);
-const connection = new Connection(process.env.RPC, 'confirmed');
+const CHAT_ID = process.env.CHAT_ID || '-4246706171';
+const bot = new Telegraf(process.env.BOT_TOKEN || '');
+// const bot = new tg(process.env.BOT_TOKEN || '');
+const connection = new Connection(process.env.RPC || clusterApiUrl('mainnet-beta'), 'confirmed');
 
-const MINT_ADDRESS = new PublicKey(process.env.MINT);
-const WALLET_PRIVATE_KEY = Uint8Array.from(JSON.parse(process.env.WALLET_PRIVATE_KEY));
+const MINT_ADDRESS = new PublicKey(process.env.MINT || 'ErbakSHZWeLnq1hsqFvNz8FvxSzggrfyNGB6TEGSSgNE');
+const WALLET_PRIVATE_KEY = Uint8Array.from(JSON.parse(process.env.WALLET_PRIVATE_KEY || '[]'));
 const wallet = Keypair.fromSecretKey(WALLET_PRIVATE_KEY);
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 const CLAIMS_FILE = 'claims.json';
-const CLAIM_COOLDOWN = (process.env.COOLDOWN || 4) * 60 * 60 * 1000; // 24 hours in milliseconds
+const CLAIM_COOLDOWN = (Number(process.env.COOLDOWN) || 4) * 60 * 60 * 1000; // 24 hours in milliseconds
+
+const checkBurnTransactions = async () => {
+    console.log('Waiting for burn transactions...');
+    connection.onLogs(
+        MINT_ADDRESS,
+        async (logsResult) => {
+            if (logsResult.err) {
+                console.error('Error in transaction:', logsResult.err);
+                return;
+            }
+            const burnLog = logsResult.logs.find(log => log.includes('Instruction: Burn'));
+            if (burnLog) {
+                const message = `❤️‍🔥 Somebody just burnt some FABS! ❤️‍🔥\n`
+                bot.telegram.sendMessage(CHAT_ID, message);
+                console.log('Burn detected:', logsResult.signature);
+            }
+        }
+    );
+}
 
 const getSupply = async () => {
     const myHeaders = new Headers();
@@ -39,11 +60,10 @@ const getSupply = async () => {
     const requestOptions = {
         method: "POST",
         headers: myHeaders,
-        body: raw,
-        redirect: "follow"
+        body: raw
     };
 
-    const reply = await fetch(process.env.RPC, requestOptions)
+    const reply = await fetch(process.env.RPC || clusterApiUrl('mainnet-beta'), requestOptions)
     const data = await reply.json()
     const supply = calculateTokenSupply(data.result.token_info.supply, data.result.token_info.decimals);
     console.log(`The total supply of FABS is ${supply} FABS.`);
@@ -75,6 +95,8 @@ const getAssetsByOwner = async () => {
     console.log(`There is currently ${balance} FABS in the Bank.`);
     return balance;
 };
+
+
 bot.command('balance', async (ctx) => {
     const balance = await getAssetsByOwner();
     ctx.reply(`There is currently ${balance} FABS in the Bank.`);
@@ -141,7 +163,7 @@ function calculateTokenSupply(rawSupply, decimals) {
 
 bot.command('holders', async (ctx) => {
     const holders = await getHolders();
-    ctx.reply(`The total supply of FABS is ${holders} FABS.`);
+    ctx.reply(holders);
 });
 const getHolders = async () => {
     const myHeaders = new Headers();
@@ -154,8 +176,7 @@ const getHolders = async () => {
     const requestOptions = {
         method: "POST",
         headers: myHeaders,
-        body: raw,
-        redirect: "follow"
+        body: raw
     };
 
     const reply = await fetch('https://tokenhodlers.vercel.app/api/getTokenHolders', requestOptions)
@@ -188,7 +209,7 @@ bot.command('claim', async (ctx) => {
 
         const input = ctx.message.text.split(' ');
         if (input.length !== 2) {
-            return ctx.reply('Please use the command in this format: /claim <Solana Address>');
+            return ctx.reply('Please use the command in this format: /claim SolanaAddress');
         }
 
         const recipientAddressString = input[1];
@@ -197,7 +218,7 @@ bot.command('claim', async (ctx) => {
         try {
             recipientAddress = new PublicKey(recipientAddressString);
         } catch (error) {
-            return ctx.reply('Invalid Solana address. Please check and try again.');
+            return ctx.reply('Invalid Solana Address. Please check and try again.');
         }
 
         loadingMessage = await ctx.reply('Processing claim...');
@@ -207,18 +228,18 @@ bot.command('claim', async (ctx) => {
                 await ctx.telegram.editMessageText(
                     ctx.chat.id,
                     loadingMessage.message_id,
-                    null,
+                    '',
                     `Processing claim${loadingSymbols[loadingIndex]} Please wait...`
                 ).catch(console.error);
                 loadingIndex = (loadingIndex + 1) % loadingSymbols.length;
-                await delay(100);
+                await delay(200);
             }
         };
 
         updateLoader();
 
-        const minAmount = process.env.MIN * 1000 || 690_000;
-        const maxAmount = process.env.MAX * 1000 || 69_000_000;
+        const minAmount = Number(process.env.MIN) * 1000 || 690_000;
+        const maxAmount = Number(process.env.MAX) * 1000 || 69_000_000;
         const step = 1_000_000; // This is our rounding step (1 million)
 
         // Calculate the range in terms of steps
@@ -280,7 +301,7 @@ bot.command('claim', async (ctx) => {
         await ctx.telegram.editMessageText(
             ctx.chat.id,
             loadingMessage.message_id,
-            null,
+            '',
             `${amount / 100000} FABS claimed successfully!\nTransaction signature: https://solana.fm/tx/${signature}`
         );
     } catch (error) {
@@ -290,7 +311,7 @@ bot.command('claim', async (ctx) => {
             await ctx.telegram.editMessageText(
                 ctx.chat.id,
                 loadingMessage.message_id,
-                null,
+                '',
                 'An error occurred while claiming FABS.\nPlease try again later.\nRemember - You MUST have at least 1 FABS in your wallet to claim more.'
             ).catch(console.error);
         } else {
@@ -301,15 +322,13 @@ bot.command('claim', async (ctx) => {
 
 console.log('Bot started successfully');
 
-const CHAT_ID = process.env.CHAT_ID || '-4246706171';
-
-
-bot.telegram.sendMessage(CHAT_ID, '🏃‍♂️‍➡️  FABS Faucet Bot is now online and ready to run! 🏃‍♂️‍➡️')
+bot.telegram.sendMessage(CHAT_ID, '🏦 FABS Bank is now open for business! 🏦')
     .then(() => {
         console.log('Startup message sent to group')
         getSupply();
         getAssetsByOwner();
         getHolders();
+        checkBurnTransactions();
     }
     )
     .catch(error => console.error('Failed to send startup message:', error));
