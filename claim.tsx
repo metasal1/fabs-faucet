@@ -163,7 +163,7 @@ function calculateTokenSupply(rawSupply, decimals) {
 bot.command('send', async (ctx) => {
     const chatId = ctx.chat.id;
     const userId = ctx.from.id;
-
+    console.log(userId);
     try {
         // Get chat member info
         const chatMember = await ctx.getChatMember(userId);
@@ -215,7 +215,7 @@ bot.command('send', async (ctx) => {
             await ctx.reply(`Sending ${amount / 100000} FABS to ${recipientAddress.toBase58()}`);
             await ctx.reply(`Transaction signature: https://solana.fm/tx/${signature}`);
         } else {
-            await ctx.reply('Sorry, this command is for FABS Bank Managers.');
+            await ctx.reply(`Sorry, this command is for FABS Bank Managers. ${userId}`);
         }
     } catch (error) {
         console.error('Error checking admin status:', error);
