@@ -159,6 +159,70 @@ function calculateTokenSupply(rawSupply, decimals) {
     });
 }
 
+
+bot.command('send', async (ctx) => {
+    const chatId = ctx.chat.id;
+    const userId = ctx.from.id;
+
+    try {
+        // Get chat member info
+        const chatMember = await ctx.getChatMember(userId);
+
+        // Check if the user is an administrator
+        if (['creator', 'administrator'].includes(chatMember.status)) {
+            const input = ctx.message.text.split(' ');
+            if (input.length !== 3) {
+                return ctx.reply('Please use the command in this format: /send amount address');
+            }
+            const amount = Number(input[1]);
+            const recipientAddress = new PublicKey(input[2])
+
+            const fromTokenAccount = await getOrCreateAssociatedTokenAccount(
+                connection,
+                wallet,
+                MINT_ADDRESS,
+                wallet.publicKey
+            );
+
+            const toTokenAccount = await getOrCreateAssociatedTokenAccount(
+                connection,
+                wallet,
+                MINT_ADDRESS,
+                recipientAddress
+            );
+
+            const transaction = new Transaction();
+
+            const priorityFeeInstruction = ComputeBudgetProgram.setComputeUnitPrice({
+                microLamports: 10000
+            });
+            transaction.add(priorityFeeInstruction);
+
+            const transferInstruction = createTransferInstruction(
+                fromTokenAccount.address,
+                toTokenAccount.address,
+                wallet.publicKey,
+                amount,
+                [],
+                TOKEN_PROGRAM_ID
+            );
+            transaction.add(transferInstruction);
+
+            const signature = await connection.sendTransaction(transaction, [wallet]);
+
+            const sign = await connection.confirmTransaction(signature);
+
+            await ctx.reply(`Sending ${amount} FABS to ${recipientAddress.toBase58()}`);
+            await ctx.reply(`Transaction signature: https://solana.fm/tx/${signature}`);
+        } else {
+            await ctx.reply('Sorry, this command is for FABS Bank Managers.');
+        }
+    } catch (error) {
+        console.error('Error checking admin status:', error);
+        await ctx.reply('An error occurred while processing your request.');
+    }
+});
+
 bot.command('holders', async (ctx) => {
     const holders = await getHolders();
     ctx.reply(holders);
