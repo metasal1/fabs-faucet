@@ -429,8 +429,3 @@ process.once('SIGINT', async () => {
     await sendExitMessage();
     bot.stop('SIGINT');
 });
-
-process.once('SIGTERM', async () => {
-    await sendExitMessage();
-    bot.stop('SIGTERM');
-});
