@@ -212,7 +212,7 @@ bot.command('send', async (ctx) => {
 
             const sign = await connection.confirmTransaction(signature);
 
-            await ctx.reply(`Sending ${amount} FABS to ${recipientAddress.toBase58()}`);
+            await ctx.reply(`Sending ${amount / 100000} FABS to ${recipientAddress.toBase58()}`);
             await ctx.reply(`Transaction signature: https://solana.fm/tx/${signature}`);
         } else {
             await ctx.reply('Sorry, this command is for FABS Bank Managers.');
