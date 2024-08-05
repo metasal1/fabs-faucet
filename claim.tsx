@@ -174,7 +174,7 @@ bot.command('send', async (ctx) => {
             if (input.length !== 3) {
                 return ctx.reply('Please use the command in this format: /send amount address');
             }
-            const amount = Number(input[1]);
+            const amount = Number(input[1]) * 100000;
             const recipientAddress = new PublicKey(input[2])
 
             const fromTokenAccount = await getOrCreateAssociatedTokenAccount(
