@@ -1,17 +1,18 @@
 import { Telegraf } from 'telegraf';
 // import * as tg from 'node-telegram-bot-api';
-import { Connection, PublicKey, Keypair, Transaction, ComputeBudgetProgram, clusterApiUrl } from '@solana/web3.js';
+import { Connection, PublicKey, Keypair, Transaction, TransactionMessage, VersionedTransaction, ComputeBudgetProgram, clusterApiUrl } from '@solana/web3.js';
 import { createTransferInstruction, getOrCreateAssociatedTokenAccount, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import * as dotenv from 'dotenv';
 import fs from 'fs-extra';
 
 dotenv.config();
 
-const CHAT_ID = process.env.CHAT_ID || '-4246706171';
+// const CHAT_ID = process.env.CHAT_ID || '-4246706171';
+const CHAT_ID = process.env.CHAT_ID || '-1002233482852';
+const TOPIC_ID = process.env.TOPIC_ID || 5167;
 const bot = new Telegraf(process.env.BOT_TOKEN || '');
 // const bot = new tg(process.env.BOT_TOKEN || '');
 const connection = new Connection(process.env.RPC || clusterApiUrl('mainnet-beta'), 'confirmed');
-
 const MINT_ADDRESS = new PublicKey(process.env.MINT || 'ErbakSHZWeLnq1hsqFvNz8FvxSzggrfyNGB6TEGSSgNE');
 const WALLET_PRIVATE_KEY = Uint8Array.from(JSON.parse(process.env.WALLET_PRIVATE_KEY || '[]'));
 const wallet = Keypair.fromSecretKey(WALLET_PRIVATE_KEY);
@@ -19,7 +20,7 @@ const wallet = Keypair.fromSecretKey(WALLET_PRIVATE_KEY);
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 const CLAIMS_FILE = 'claims.json';
-const CLAIM_COOLDOWN = (Number(process.env.COOLDOWN) || 4) * 60 * 60 * 1000; // 24 hours in milliseconds
+const CLAIM_COOLDOWN = (Number(process.env.COOLDOWN) || 6) * 60 * 60 * 1000; // 24 hours in milliseconds
 
 const checkBurnTransactions = async () => {
     console.log('Waiting for burn transactions...');
@@ -33,12 +34,13 @@ const checkBurnTransactions = async () => {
             const burnLog = logsResult.logs.find(log => log.includes('Instruction: Burn'));
             if (burnLog) {
                 const message = `❤️‍🔥 Somebody just burnt some FABS! ❤️‍🔥\n`
-                bot.telegram.sendMessage(CHAT_ID, message);
+                bot.telegram.sendMessage(CHAT_ID, message, { message_thread_id: Number(TOPIC_ID) });
                 console.log('Burn detected:', logsResult.signature);
             }
         }
     );
 }
+
 
 const getSupply = async () => {
     const myHeaders = new Headers();
@@ -103,7 +105,7 @@ bot.command('balance', async (ctx) => {
 });
 
 bot.command('ca', async (ctx) => {
-    ctx.reply(`FABS fabs.fun\n${process.env.MINT}`);
+    ctx.reply(`FABS fabs.fun\n${process.env.MINT} `);
 });
 
 bot.command('dao', async (ctx) => {
@@ -191,12 +193,12 @@ bot.command('send', async (ctx) => {
                 recipientAddress
             );
 
-            const transaction = new Transaction();
+            // const transaction = new Transaction();
 
             const priorityFeeInstruction = ComputeBudgetProgram.setComputeUnitPrice({
                 microLamports: 10000
             });
-            transaction.add(priorityFeeInstruction);
+            // transaction.add(priorityFeeInstruction);
 
             const transferInstruction = createTransferInstruction(
                 fromTokenAccount.address,
@@ -206,11 +208,37 @@ bot.command('send', async (ctx) => {
                 [],
                 TOKEN_PROGRAM_ID
             );
-            transaction.add(transferInstruction);
+            // transaction.add(transferInstruction);
 
-            const signature = await connection.sendTransaction(transaction, [wallet]);
+            // Get the latest blockhash
+            const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
 
-            const sign = await connection.confirmTransaction(signature);
+            // Create a TransactionMessage
+            const message = new TransactionMessage({
+                payerKey: wallet.publicKey,
+                recentBlockhash: blockhash,
+                instructions: [priorityFeeInstruction, transferInstruction]
+            }).compileToV0Message();
+
+
+            // Create a VersionedTransaction
+            const transaction = new VersionedTransaction(message);
+
+            // Sign the transaction
+            transaction.sign([wallet]);
+
+            // Send the transaction
+            const signature = await connection.sendTransaction(transaction);
+
+            // Confirm the transaction
+            const confirmation = await connection.confirmTransaction({
+                signature,
+                blockhash,
+                lastValidBlockHeight
+            });
+            // const signature = await connection.sendTransaction(transaction, [wallet]);
+
+            // const sign = await connection.confirmTransaction(signature);
 
             await ctx.reply(`Sending ${amount / 100000} FABS to ${recipientAddress.toBase58()}`);
             await ctx.reply(`Transaction signature: https://solana.fm/tx/${signature}`);
@@ -382,7 +410,7 @@ bot.command('claim', async (ctx) => {
     }
 });
 
-bot.telegram.sendMessage(CHAT_ID, '🏦 FABS Bank is now open for business! 🏦')
+bot.telegram.sendMessage(CHAT_ID, '🏦 FABS Bank is now open for business! 🏦', { message_thread_id: Number(TOPIC_ID) })
     .then(() => {
         console.log('Startup message sent to group')
         getSupply();
@@ -402,7 +430,7 @@ bot.launch().then(() => {
 async function sendExitMessage() {
     const exitMessage = `👋 FABS Bank is temporarily closed. We'll be back soon!`;
     try {
-        await bot.telegram.sendMessage(CHAT_ID, exitMessage);
+        await bot.telegram.sendMessage(CHAT_ID, exitMessage, { message_thread_id: Number(TOPIC_ID) });
         console.log('Exit message sent successfully');
     } catch (error) {
         console.error('Failed to send exit message:', error);
