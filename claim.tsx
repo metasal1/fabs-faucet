@@ -18,6 +18,7 @@ const connection = new Connection(process.env.RPC || clusterApiUrl('mainnet-beta
 const wallet = Keypair.fromSecretKey(WALLET_PRIVATE_KEY);
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+
 const checkBurnTransactions = async () => {
     console.log('Waiting for burn transactions...');
     connection.onLogs(
@@ -139,6 +140,15 @@ const getSolBalance = async () => {
     console.log(`Current SOL balance is ${data.result.value / LAMPORTS_PER_SOL} SOL`);
     return data.result.value;
 }
+const getDomainWallet = async (address) => {
+    const myHeaders = new Headers();
+    myHeaders.append("Content-Type", "application/json");
+
+    const reply = await fetch(`https://sns-sdk-proxy.bonfida.workers.dev/resolve/${address}`)
+    const data = await reply.json()
+    console.log(`Wallet Address: ${data.result}`);
+    return data
+}
 
 // Function to load claims
 const loadClaims = () => {
@@ -185,14 +195,17 @@ const calculateTokenSupply = async (rawSupply, decimals) => {
     });
 }
 
-
 bot.command('balance', async (ctx) => {
     const balance = await getAssetsByOwner();
     ctx.reply(`There is currently ${balance} FABS in the Bank.`);
 });
 
 bot.command('ca', async (ctx) => {
-    ctx.reply(`FABS fabs.fun\n${process.env.MINT} `);
+    ctx.reply(`Token Mint Address\n<code>${process.env.MINT}</code>`, { parse_mode: 'HTML' });
+});
+
+bot.command('website', async (ctx) => {
+    ctx.reply(`WEBSITE\nfabs.fun`, { parse_mode: 'HTML' });
 });
 
 bot.command('dao', async (ctx) => {
@@ -203,7 +216,6 @@ bot.command('supply', async (ctx) => {
     const reply = await getSupply();
     ctx.reply(reply)
 });
-
 
 bot.command('send', async (ctx) => {
     const chatId = ctx.chat.id;
@@ -303,6 +315,17 @@ bot.command('holders', async (ctx) => {
 bot.command('gas', async (ctx) => {
     const gas = await getSolBalance();
     ctx.reply(`Current SOL balance for fees is ${gas / LAMPORTS_PER_SOL} SOL`);
+})
+
+bot.command('lookup', async (ctx) => {
+
+    const input = ctx.message.text.split(' ');
+    if (input.length !== 2) {
+        return ctx.reply('Please use the command in this format: /lookup address');
+    }
+
+    const address = await getDomainWallet(input[1]);
+    ctx.reply(`Wallet Address: <code>${address.result}</code>`, { parse_mode: 'HTML' });
 })
 
 bot.command('claim', async (ctx) => {
