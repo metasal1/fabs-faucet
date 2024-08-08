@@ -1,26 +1,22 @@
 import { Telegraf } from 'telegraf';
-// import * as tg from 'node-telegram-bot-api';
-import { Connection, PublicKey, Keypair, Transaction, TransactionMessage, VersionedTransaction, ComputeBudgetProgram, clusterApiUrl } from '@solana/web3.js';
+import { Connection, PublicKey, Keypair, Transaction, TransactionMessage, VersionedTransaction, ComputeBudgetProgram, clusterApiUrl, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { createTransferInstruction, getOrCreateAssociatedTokenAccount, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import * as dotenv from 'dotenv';
 import fs from 'fs-extra';
 
 dotenv.config();
 
-// const CHAT_ID = process.env.CHAT_ID || '-4246706171';
 const CHAT_ID = process.env.CHAT_ID || '-1002233482852';
 const TOPIC_ID = process.env.TOPIC_ID || 5167;
-const bot = new Telegraf(process.env.BOT_TOKEN || '');
-// const bot = new tg(process.env.BOT_TOKEN || '');
-const connection = new Connection(process.env.RPC || clusterApiUrl('mainnet-beta'), 'confirmed');
 const MINT_ADDRESS = new PublicKey(process.env.MINT || 'ErbakSHZWeLnq1hsqFvNz8FvxSzggrfyNGB6TEGSSgNE');
 const WALLET_PRIVATE_KEY = Uint8Array.from(JSON.parse(process.env.WALLET_PRIVATE_KEY || '[]'));
-const wallet = Keypair.fromSecretKey(WALLET_PRIVATE_KEY);
-
-const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
 const CLAIMS_FILE = 'claims.json';
 const CLAIM_COOLDOWN = (Number(process.env.COOLDOWN) || 6) * 60 * 60 * 1000; // 24 hours in milliseconds
+
+const bot = new Telegraf(process.env.BOT_TOKEN || '');
+const connection = new Connection(process.env.RPC || clusterApiUrl('mainnet-beta'), 'confirmed');
+const wallet = Keypair.fromSecretKey(WALLET_PRIVATE_KEY);
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 const checkBurnTransactions = async () => {
     console.log('Waiting for burn transactions...');
@@ -40,8 +36,30 @@ const checkBurnTransactions = async () => {
         }
     );
 }
+const getHolders = async () => {
+    const myHeaders = new Headers();
+    myHeaders.append("Content-Type", "application/json");
 
+    const raw = JSON.stringify({
+        "mintAddress": process.env.MINT,
+    });
 
+    const requestOptions = {
+        method: "POST",
+        headers: myHeaders,
+        body: raw
+    };
+
+    const reply = await fetch('https://tokenhodlers.vercel.app/api/getTokenHolders', requestOptions)
+    const data = await reply.json()
+    const totalHolders = data.length;
+    const zeroBois = data.filter(holder => holder.balance < 1).length;
+    const millionaires = data.filter(holder => holder.balance > 1_000_000_000).length;
+    const billionares = data.filter(holder => holder.balance > 1_000_000_000_000_000).length;
+    const response = `Total Bank Accounts =  ${totalHolders}\nEmpty Accounts = ${zeroBois}\nMillionaires = ${millionaires}\nBillionaires = ${billionares}`;
+    console.log(response);
+    return response;
+}
 const getSupply = async () => {
     const myHeaders = new Headers();
     myHeaders.append("Content-Type", "application/json");
@@ -93,24 +111,35 @@ const getAssetsByOwner = async () => {
     });
     const { result } = await response.json();
     const item = result.items.find(item => item.id === process.env.MINT);
-    const balance = calculateTokenSupply(item.token_info.balance, item.token_info.decimals);
+    const balance = await calculateTokenSupply(item.token_info.balance, item.token_info.decimals);
     console.log(`There is currently ${balance} FABS in the Bank.`);
     return balance;
 };
+const getSolBalance = async () => {
+    const myHeaders = new Headers();
+    myHeaders.append("Content-Type", "application/json");
 
+    const raw = JSON.stringify({
+        "jsonrpc": "2.0",
+        "id": "my-id",
+        "method": "getBalance",
+        "params": [
+            process.env.PK
+        ]
+    });
 
-bot.command('balance', async (ctx) => {
-    const balance = await getAssetsByOwner();
-    ctx.reply(`There is currently ${balance} FABS in the Bank.`);
-});
+    const requestOptions = {
+        method: "POST",
+        headers: myHeaders,
+        body: raw
+    };
 
-bot.command('ca', async (ctx) => {
-    ctx.reply(`FABS fabs.fun\n${process.env.MINT} `);
-});
+    const reply = await fetch(process.env.RPC || clusterApiUrl('mainnet-beta'), requestOptions)
+    const data = await reply.json()
+    console.log(`Current SOL balance is ${data.result.value / LAMPORTS_PER_SOL} SOL`);
+    return data.result.value;
+}
 
-bot.command('dao', async (ctx) => {
-    ctx.reply(`DAO\nhttps://app.realms.today/dao/FABS`);
-});
 // Function to load claims
 const loadClaims = () => {
     if (fs.existsSync(CLAIMS_FILE)) {
@@ -139,12 +168,7 @@ const formatTimeRemaining = (milliseconds) => {
     return `${hours} hours and ${minutes} minutes`;
 };
 
-bot.command('supply', async (ctx) => {
-    const reply = await getSupply();
-    ctx.reply(reply)
-});
-
-function calculateTokenSupply(rawSupply, decimals) {
+const calculateTokenSupply = async (rawSupply, decimals) => {
     // Convert rawSupply to BigInt to handle large numbers
     const supply = BigInt(rawSupply);
 
@@ -162,10 +186,29 @@ function calculateTokenSupply(rawSupply, decimals) {
 }
 
 
+bot.command('balance', async (ctx) => {
+    const balance = await getAssetsByOwner();
+    ctx.reply(`There is currently ${balance} FABS in the Bank.`);
+});
+
+bot.command('ca', async (ctx) => {
+    ctx.reply(`FABS fabs.fun\n${process.env.MINT} `);
+});
+
+bot.command('dao', async (ctx) => {
+    ctx.reply(`DAO\nhttps://app.realms.today/dao/FABS`);
+});
+
+bot.command('supply', async (ctx) => {
+    const reply = await getSupply();
+    ctx.reply(reply)
+});
+
+
 bot.command('send', async (ctx) => {
     const chatId = ctx.chat.id;
     const userId = ctx.from.id;
-    console.log(userId);
+    console.log("UserId: ", userId);
     try {
         // Get chat member info
         const chatMember = await ctx.getChatMember(userId);
@@ -178,6 +221,8 @@ bot.command('send', async (ctx) => {
             }
             const amount = Number(input[1]) * 100000;
             const recipientAddress = new PublicKey(input[2])
+
+            ctx.reply(`Sending ${amount / 100000} FABS to ${recipientAddress.toBase58()}`);
 
             const fromTokenAccount = await getOrCreateAssociatedTokenAccount(
                 connection,
@@ -240,10 +285,9 @@ bot.command('send', async (ctx) => {
 
             // const sign = await connection.confirmTransaction(signature);
 
-            await ctx.reply(`Sending ${amount / 100000} FABS to ${recipientAddress.toBase58()}`);
-            await ctx.reply(`Transaction signature: https://solana.fm/tx/${signature}`);
+            ctx.reply(`Transaction signature: https://solana.fm/tx/${signature}`);
         } else {
-            await ctx.reply(`Sorry, this command is for FABS Bank Managers. ${userId}`);
+            await ctx.reply(`👮‍♀️ Call Security - Someone is trying to rob the bank! ${userId}`);
         }
     } catch (error) {
         console.error('Error checking admin status:', error);
@@ -255,30 +299,11 @@ bot.command('holders', async (ctx) => {
     const holders = await getHolders();
     ctx.reply(holders);
 });
-const getHolders = async () => {
-    const myHeaders = new Headers();
-    myHeaders.append("Content-Type", "application/json");
 
-    const raw = JSON.stringify({
-        "mintAddress": process.env.MINT,
-    });
-
-    const requestOptions = {
-        method: "POST",
-        headers: myHeaders,
-        body: raw
-    };
-
-    const reply = await fetch('https://tokenhodlers.vercel.app/api/getTokenHolders', requestOptions)
-    const data = await reply.json()
-    const totalHolders = data.length;
-    const zeroBois = data.filter(holder => holder.balance < 1).length;
-    const millionaires = data.filter(holder => holder.balance > 1_000_000_000).length;
-    const billionares = data.filter(holder => holder.balance > 1_000_000_000_000_000).length;
-    const response = `Total Bank Accounts =  ${totalHolders}\nEmpty Accounts = ${zeroBois}\nMillionaires = ${millionaires}\nBillionaires = ${billionares}`;
-    console.log(response);
-    return response;
-}
+bot.command('gas', async (ctx) => {
+    const gas = await getSolBalance();
+    ctx.reply(`Current SOL balance for fees is ${gas / LAMPORTS_PER_SOL} SOL`);
+})
 
 bot.command('claim', async (ctx) => {
     const loadingSymbols = ['.', '..', '...', '....', '.....'];
@@ -294,7 +319,7 @@ bot.command('claim', async (ctx) => {
             const lastClaimTime = new Date(claims[userId].timestamp).getTime();
             const currentTime = new Date().getTime();
             const timeRemaining = CLAIM_COOLDOWN - (currentTime - lastClaimTime);
-            return ctx.reply(`You can only claim every 4 hours! Please try again in ${formatTimeRemaining(timeRemaining)}.`);
+            return ctx.reply(`You can only claim every ${process.env.COOLDOWN} hours! Please try again in ${formatTimeRemaining(timeRemaining)}.`);
         }
 
         const input = ctx.message.text.split(' ');
@@ -322,7 +347,7 @@ bot.command('claim', async (ctx) => {
                     `Processing claim${loadingSymbols[loadingIndex]} Please wait...`
                 ).catch(console.error);
                 loadingIndex = (loadingIndex + 1) % loadingSymbols.length;
-                await delay(200);
+                await delay(300);
             }
         };
 
@@ -427,7 +452,7 @@ bot.launch().then(() => {
 
 });
 
-async function sendExitMessage() {
+const sendExitMessage = async () => {
     const exitMessage = `👋 FABS Bank is temporarily closed. We'll be back soon!`;
     try {
         await bot.telegram.sendMessage(CHAT_ID, exitMessage, { message_thread_id: Number(TOPIC_ID) });
@@ -436,7 +461,6 @@ async function sendExitMessage() {
         console.error('Failed to send exit message:', error);
     }
 }
-// Add this near the end of your file, after bot.launch()
 
 // Uncaught exception handler
 process.on('uncaughtException', async (error) => {
