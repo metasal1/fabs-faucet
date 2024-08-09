@@ -18,7 +18,6 @@ const connection = new Connection(process.env.RPC || clusterApiUrl('mainnet-beta
 const wallet = Keypair.fromSecretKey(WALLET_PRIVATE_KEY);
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-
 const checkBurnTransactions = async () => {
     console.log('Waiting for burn transactions...');
     connection.onLogs(
@@ -140,17 +139,42 @@ const getSolBalance = async () => {
     console.log(`Current SOL balance is ${data.result.value / LAMPORTS_PER_SOL} SOL`);
     return data.result.value;
 }
-const getDomainWallet = async (address) => {
-    console.log(`Checking Wallet Address: ${address}`);
+const getDomainWallet = async (name) => {
+    console.log(`Checking Wallet Address: ${name}`);
 
     const myHeaders = new Headers();
     myHeaders.append("Content-Type", "application/json");
 
-    const reply = await fetch(`https://sns-sdk-proxy.bonfida.workers.dev/resolve/${address}`)
-    const data = await reply.json()
-    console.log(`Wallet Address: ${data.result}`);
-    return data
-}
+    let url;
+    let data;
+
+    if (name.endsWith('.sol')) {
+        url = `https://sns-sdk-proxy.bonfida.workers.dev/resolve/${name}`;
+        const reply = await fetch(url);
+        data = await reply.json();
+        console.log(`Wallet Address for ${name}: ${data.result}`);
+    } else {
+        url = `https://alldomains.id/api/check-domain/${name}`;
+        const response = await fetch(url);
+        const responseData = await response.json();
+
+        // Assuming the first item in the 'exists' array is the relevant one
+        const domainInfo = responseData.exists[0];
+
+        data = {
+            result: domainInfo.owner,
+            tld: responseData.tld,
+            expiresAt: domainInfo.expiresAt,
+            createdAt: domainInfo.createdAt,
+            isValid: domainInfo.isValid,
+            domainPrice: responseData.domainPrice
+        };
+
+        console.log(`Wallet Address for ${name}: ${data.result}`);
+    }
+
+    return data;
+};
 
 // Function to load claims
 const loadClaims = () => {
@@ -196,6 +220,11 @@ const calculateTokenSupply = async (rawSupply, decimals) => {
         maximumFractionDigits: 0
     });
 }
+
+bot.command('core', async (ctx) => {
+    ctx.reply(`Core Team will be announced...!`);
+});
+
 
 bot.command('balance', async (ctx) => {
     const balance = await getAssetsByOwner();
@@ -246,8 +275,9 @@ bot.command('send', async (ctx) => {
                 try {
                     const domainWallet = await getDomainWallet(input[2]);
                     recipientAddress = new PublicKey(domainWallet.result);
+                    console.log("Received the following address from the API: ", recipientAddress);
                 } catch (err) {
-                    return ctx.reply('Invalid Solana Address or Wallet Name. Please check and try again.\nGet your Wallet Name at https://www.sns.id/sub-registrar/onlyfabs ');
+                    return ctx.reply('Invalid Solana Address or Wallet Name. Please check and try again.\nGet your Wallet Name at\nhttps://alldomains.id/?ref=fabs\nhttps://www.sns.id/sub-registrar/onlyfabs', { parse_mode: 'HTML' });
                 }
             }
 
