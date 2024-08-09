@@ -141,6 +141,8 @@ const getSolBalance = async () => {
     return data.result.value;
 }
 const getDomainWallet = async (address) => {
+    console.log(`Checking Wallet Address: ${address}`);
+
     const myHeaders = new Headers();
     myHeaders.append("Content-Type", "application/json");
 
@@ -229,10 +231,25 @@ bot.command('send', async (ctx) => {
         if (['creator', 'administrator'].includes(chatMember.status) || userId === 2077314752 || userId === 2214398016 || userId === 136817688) {
             const input = ctx.message.text.split(' ');
             if (input.length !== 3) {
-                return ctx.reply('Please use the command in this format: /send amount address');
+                return ctx.reply('Please use the command in this format: /send amount address/name');
             }
+
             const amount = Number(input[1]) * 100000;
-            const recipientAddress = new PublicKey(input[2])
+            if (isNaN(amount)) {
+                return ctx.reply('Invalid amount. Please provide a valid number.');
+            }
+
+            let recipientAddress;
+            try {
+                recipientAddress = new PublicKey(input[2]);
+            } catch (e) {
+                try {
+                    const domainWallet = await getDomainWallet(input[2]);
+                    recipientAddress = new PublicKey(domainWallet.result);
+                } catch (err) {
+                    return ctx.reply('Invalid Solana Address or Wallet Name. Please check and try again.');
+                }
+            }
 
             ctx.reply(`Sending ${amount / 100000} FABS to ${recipientAddress.toBase58()}`);
 
