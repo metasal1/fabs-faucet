@@ -247,7 +247,7 @@ bot.command('send', async (ctx) => {
                     const domainWallet = await getDomainWallet(input[2]);
                     recipientAddress = new PublicKey(domainWallet.result);
                 } catch (err) {
-                    return ctx.reply('Invalid Solana Address or Wallet Name. Please check and try again.');
+                    return ctx.reply('Invalid Solana Address or Wallet Name. Please check and try again.\nGet your Wallet Name at https://www.sns.id/sub-registrar/onlyfabs ');
                 }
             }
 
