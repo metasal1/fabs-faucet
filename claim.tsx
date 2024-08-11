@@ -3,6 +3,7 @@ import { Connection, PublicKey, Keypair, Transaction, TransactionMessage, Versio
 import { createTransferInstruction, getOrCreateAssociatedTokenAccount, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import * as dotenv from 'dotenv';
 import fs from 'fs-extra';
+import { get } from 'http';
 
 dotenv.config();
 
@@ -52,10 +53,10 @@ const getHolders = async () => {
 
     const reply = await fetch('https://tokenhodlers.vercel.app/api/getTokenHolders', requestOptions)
     const data = await reply.json()
-    const totalHolders = data.length;
-    const zeroBois = data.filter(holder => holder.balance < 1).length;
-    const millionaires = data.filter(holder => holder.balance > 1_000_000_000).length;
-    const billionares = data.filter(holder => holder.balance > 1_000_000_000_000_000).length;
+    const totalHolders = data.totalHolders;
+    const zeroBois = data.zeroBoys;
+    const millionaires = data.millionairesCount
+    const billionares = data.billionairesCount
     const response = `Total Bank Accounts =  ${totalHolders}\nEmpty Accounts = ${zeroBois}\nMillionaires = ${millionaires}\nBillionaires = ${billionares}`;
     console.log(response);
     return response;
@@ -85,35 +86,71 @@ const getSupply = async () => {
 
     const reply = await fetch(process.env.RPC || clusterApiUrl('mainnet-beta'), requestOptions)
     const data = await reply.json()
-    const supply = calculateTokenSupply(data.result.token_info.supply, data.result.token_info.decimals);
+    const supply = await calculateTokenSupply(data.result.token_info.supply, data.result.token_info.decimals);
     console.log(`The total supply of FABS is ${supply} FABS.`);
     return supply;
 }
-const getAssetsByOwner = async () => {
-    const response = await fetch(process.env.RPC || clusterApiUrl('mainnet-beta'), {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            jsonrpc: '2.0',
-            id: 'my-id',
-            method: 'getAssetsByOwner',
-            params: {
-                ownerAddress: process.env.PK,
-                page: 1, // Starts at 1
-                limit: 1000,
-                displayOptions: {
-                    showFungible: true //return both fungible and non-fungible tokens
+
+const getAssetsByOwner = async (address: string): Promise<number> => {
+
+    let addy;
+    try {
+        addy = new PublicKey(address);
+    } catch (e) {
+        try {
+            const domainWallet = await getDomainWallet(address);
+            addy = new PublicKey(domainWallet.result);
+        } catch (err) {
+            return 0;
+        }
+    }
+
+    try {
+        console.log(`Checking Wallet Address: ${addy}`);
+        const raw = JSON.stringify({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "getTokenAccountsByOwner",
+            "params": [
+                addy,
+                {
+                    "mint": "ErbakSHZWeLnq1hsqFvNz8FvxSzggrfyNGB6TEGSSgNE"
+                },
+                {
+                    "encoding": "jsonParsed"
                 }
+            ]
+        });
+
+        const requestOptions = {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
             },
-        }),
-    });
-    const { result } = await response.json();
-    const item = result.items.find(item => item.id === process.env.MINT);
-    const balance = await calculateTokenSupply(item.token_info.balance, item.token_info.decimals);
-    console.log(`There is currently ${balance} FABS in the Bank.`);
-    return balance;
+            body: raw,
+        };
+
+        const response = await fetch(process.env.RPC || clusterApiUrl('mainnet-beta'), requestOptions);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const result = await response.json();
+
+        if (!result.result || !result.result.value || result.result.value.length === 0) {
+            // throw new Error("No token account found for the given address");
+            const message = "No token account found for the given address";
+            console.log(message);
+            return message;
+        }
+
+        const balance = Math.round(result.result.value[0].account.data.parsed.info.tokenAmount.uiAmount);
+        console.log(`There are currently ${balance} FABS in the Bank.`);
+        return balance;
+    } catch (error) {
+        console.error(`Couldn't get balance:`, error);
+        // throw error; // Re-throw the error for the caller to handle
+        return 0;
+    }
 };
 const getSolBalance = async () => {
     const myHeaders = new Headers();
@@ -141,6 +178,15 @@ const getSolBalance = async () => {
 }
 const getDomainWallet = async (name) => {
     console.log(`Checking Wallet Address: ${name}`);
+
+    try {
+        const isPK = new PublicKey(name);
+        if (isPK) {
+            return name;
+        }
+    } catch (e) {
+        console.log('Not a public key');
+    }
 
     const myHeaders = new Headers();
     myHeaders.append("Content-Type", "application/json");
@@ -221,14 +267,42 @@ const calculateTokenSupply = async (rawSupply, decimals) => {
     });
 }
 
+bot.command('start', async (ctx) => {
+    ctx.reply(`Welcome to FABS Bank!`);
+}
+);
+
+bot.command('names', async (ctx) => {
+    const url = "https://sns-sdk-proxy.bonfida.workers.dev/subdomains/onlyfabs"
+    const myHeaders = new Headers();
+    let data;
+    myHeaders.append("Content-Type", "application/json");
+
+    const reply = await fetch(url);
+    data = await reply.json();
+    const message = `Total Registered Names ${data.result.length}`;
+    console.log(message);
+    ctx.reply(`${message}\nGet your Wallet Name at\nhttps://www.sns.id/sub-registrar/onlyfabs`, { parse_mode: 'HTML' });
+});
+
 bot.command('core', async (ctx) => {
     ctx.reply(`Core Team will be announced...!`);
 });
 
 
 bot.command('balance', async (ctx) => {
-    const balance = await getAssetsByOwner();
-    ctx.reply(`There is currently ${balance} FABS in the Bank.`);
+
+    const input = ctx.message.text.split(' ');
+    if (input.length === 1) {
+        const balance = await getAssetsByOwner(process.env.PK || 'GuPGRSTcXkpJ5mY2iaxUmLrCehxXZizTHxTEFwmNWG5t');
+        ctx.reply(`There is currently ${balance} FABS in the Bank.`);
+    }
+    else if (input.length === 2) {
+        const balance = await getAssetsByOwner(input[1]);
+        ctx.reply(`${input[1]} currently has ${balance} FABS.`);
+    } else {
+        return ctx.reply('Please use the command in this format: /balance address/name');
+    }
 });
 
 bot.command('ca', async (ctx) => {
@@ -277,7 +351,7 @@ bot.command('send', async (ctx) => {
                     recipientAddress = new PublicKey(domainWallet.result);
                     console.log("Received the following address from the API: ", recipientAddress);
                 } catch (err) {
-                    return ctx.reply('Invalid Solana Address or Wallet Name. Please check and try again.\nGet your Wallet Name at\nhttps://alldomains.id/?ref=fabs\nhttps://www.sns.id/sub-registrar/onlyfabs', { parse_mode: 'HTML' });
+                    return ctx.reply('Invalid Solana Address or Wallet Name. Please check and try again.\nGet your Wallet Name at\nhttps://www.sns.id/sub-registrar/onlyfabs', { parse_mode: 'HTML' });
                 }
             }
 
@@ -509,7 +583,7 @@ bot.telegram.sendMessage(CHAT_ID, '🏦 FABS Bank is now open for business! 🏦
     .then(() => {
         console.log('Startup message sent to group')
         getSupply();
-        getAssetsByOwner();
+        getAssetsByOwner(process.env.PK || 'GuPGRSTcXkpJ5mY2iaxUmLrCehxXZizTHxTEFwmNWG5t');
         getHolders();
         checkBurnTransactions();
     }
