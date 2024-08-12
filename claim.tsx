@@ -37,6 +37,25 @@ const checkBurnTransactions = async () => {
         }
     );
 }
+
+const checkForNewHolder = async () => {
+    console.log('Waiting for NEW Holder transactions...');
+    connection.onLogs(
+        MINT_ADDRESS,
+        async (logs, ctx) => {
+            console.log(logs.signature);
+            const sig = await connection.getTransaction(logs['signature'], { maxSupportedTransactionVersion: 0 });
+            const newHolder = sig?.meta?.postTokenBalances?.[0]?.owner;
+            console.log(newHolder ?? 'No owner found');
+            const message = `🎉 Welcome to the fam <code>${newHolder}</code>\n`
+            bot.telegram.sendMessage(CHAT_ID, message, { message_thread_id: Number(TOPIC_ID), parse_mode: 'HTML' });
+
+        },
+        'finalized'
+    );
+}
+
+
 const getHolders = async () => {
     const myHeaders = new Headers();
     myHeaders.append("Content-Type", "application/json");
@@ -586,6 +605,7 @@ bot.telegram.sendMessage(CHAT_ID, '🏦 FABS Bank is now open for business! 🏦
         getAssetsByOwner(process.env.PK || 'GuPGRSTcXkpJ5mY2iaxUmLrCehxXZizTHxTEFwmNWG5t');
         getHolders();
         checkBurnTransactions();
+        checkForNewHolder();
     }
     )
     .catch(error => console.error('Failed to send startup message:', error));
