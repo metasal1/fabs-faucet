@@ -308,9 +308,16 @@ bot.command('core', async (ctx) => {
     ctx.reply(`Core Team will be announced...!`);
 });
 
-bot.command('buy', async (ctx) => {
-    ctx.reply(`https://jup.ag/swap/SOL-${MINT_ADDRESS}?referrer=8bbPc25fviwtBdDNR7dxyznp2qxUTKbxGtsougy9w7de&feeBps=100`);
+// Handler for the /buy command
+bot.command('buy', (ctx) => {
+    ctx.reply(`To buy our token, please use this link: https://jup.ag/swap/SOL-${MINT_ADDRESS}?referrer=8bbPc25fviwtBdDNR7dxyznp2qxUTKbxGtsougy9w7de&feeBps=100`);
 });
+
+// Handler for messages containing 'buy' or 'purchase'
+bot.hears(['buy', 'purchase'], (ctx) => {
+    ctx.reply(`To buy our token, please use this link: https://jup.ag/swap/SOL-${MINT_ADDRESS}?referrer=8bbPc25fviwtBdDNR7dxyznp2qxUTKbxGtsougy9w7de&feeBps=100`);
+});
+
 
 bot.command('balance', async (ctx) => {
 
