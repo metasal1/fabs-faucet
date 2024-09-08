@@ -15,6 +15,8 @@ const WALLET_PRIVATE_KEY = Uint8Array.from(JSON.parse(process.env.WALLET_PRIVATE
 const CLAIMS_FILE = 'claims.json';
 const CLAIM_COOLDOWN = (Number(process.env.COOLDOWN) || 6) * 60 * 60 * 1000; // 24 hours in milliseconds
 const AI_KEY = process.env.AI_KEY || '';
+const AI_SCOPE = process.env.AI_SCOPE || '10 words max';
+const GYM_TOPIC_ID = process.env.GYM_TOPIC_ID || '2';
 
 const bot = new Telegraf(process.env.BOT_TOKEN || '');
 const connection = new Connection(process.env.RPC || clusterApiUrl('mainnet-beta'), 'confirmed');
@@ -329,7 +331,7 @@ bot.on('message', async (ctx) => {
                             },
                             {
                                 type: 'text',
-                                text: 'Analyze this workout image and calculate a score based on the distance, duration and intensity of the workout. The score must be between 100000 and 690000.',
+                                text: AI_SCOPE,
                             },
                         ],
                     },
@@ -338,7 +340,7 @@ bot.on('message', async (ctx) => {
                 // Call the Anthropic API
                 const response = await anthropic.messages.create({
                     model: 'claude-3-opus-20240229',
-                    max_tokens: 1000,
+                    max_tokens: 500,
                     messages: message,
                 });
 
