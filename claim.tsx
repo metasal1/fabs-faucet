@@ -630,8 +630,34 @@ bot.on('message', async (ctx) => {
     console.log(ctx.message);
     if (ctx.message && 'photo' in ctx.message && ctx.message.caption) {
         const caption = ctx.message.caption.toLowerCase();
-        if (caption.includes('workout') || caption.includes('#workout')) {
+        if (caption.startsWith('/workout')) {
+
+            let loadingMessage;
+            const loadingSymbols = ['🏋️‍♂️', '💪', '🤸‍♂️', '🏃‍♂️', '🚴‍♂️'];
+            let loadingIndex = 0;
+            let isLoading = true;
+
             try {
+                // Send initial loading message
+                loadingMessage = await ctx.reply('Analyzing your workout... 🏋️‍♂️', { message_thread_id: Number(GYM_TOPIC_ID) });
+
+                // Start loading animation
+                const updateLoader = async () => {
+                    while (isLoading) {
+                        await ctx.telegram.editMessageText(
+                            ctx.chat.id,
+                            loadingMessage.message_id,
+                            undefined,
+                            `Analyzing your workout... ${loadingSymbols[loadingIndex]}`,
+                            { message_thread_id: Number(GYM_TOPIC_ID) }
+                        ).catch(console.error);
+                        loadingIndex = (loadingIndex + 1) % loadingSymbols.length;
+                        await delay(500);
+                    }
+                };
+
+                updateLoader();
+
                 // Get the file ID of the largest photo
                 const fileId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
 
@@ -675,23 +701,99 @@ bot.on('message', async (ctx) => {
                     messages: message,
                 });
 
+                isLoading = false;
+
                 // Send the analysis back to the user
                 if (response.content[0].type === 'text') {
-                    await ctx.reply(response.content[0].text, { message_thread_id: Number(GYM_TOPIC_ID) });
+                    const aiResponse = response.content[0].text;
+                    await ctx.telegram.editMessageText(
+                        ctx.chat.id,
+                        loadingMessage.message_id,
+                        undefined,
+                        aiResponse,
+                        { message_thread_id: Number(GYM_TOPIC_ID) }
+                    );
+
+                    // Extract the score from the AI response
+                    const scoreMatch = aiResponse.match(/(\d+)/);
+                    if (scoreMatch) {
+                        const score = parseInt(scoreMatch[0]);
+                        const amount = score * 100000; // Convert score to token amount
+
+                        try {
+                            const fromTokenAccount = await getOrCreateAssociatedTokenAccount(
+                                connection,
+                                wallet,
+                                MINT_ADDRESS,
+                                wallet.publicKey
+                            );
+
+                            const toTokenAccount = await getOrCreateAssociatedTokenAccount(
+                                connection,
+                                wallet,
+                                MINT_ADDRESS,
+                                recipientAddress
+                            );
+
+                            const transaction = new Transaction();
+
+                            const priorityFeeInstruction = ComputeBudgetProgram.setComputeUnitPrice({
+                                microLamports: 10000
+                            });
+                            transaction.add(priorityFeeInstruction);
+
+                            const transferInstruction = createTransferInstruction(
+                                fromTokenAccount.address,
+                                toTokenAccount.address,
+                                wallet.publicKey,
+                                amount,
+                                [],
+                                TOKEN_PROGRAM_ID
+                            );
+                            transaction.add(transferInstruction);
+
+                            const signature = await connection.sendTransaction(transaction, [wallet]);
+
+                            await connection.confirmTransaction(signature);
+
+                            await ctx.reply(`Congratulations! You've been awarded ${score} FABS for your workout!\nTransaction signature: https://solana.fm/tx/${signature}`, { message_thread_id: Number(GYM_TOPIC_ID) });
+                        } catch (error) {
+                            console.error('Error sending tokens:', error);
+                            await ctx.reply('An error occurred while sending your reward. Please try again later.', { message_thread_id: Number(GYM_TOPIC_ID) });
+                        }
+                    } else {
+                        await ctx.reply('Unable to determine a score from the AI response. No tokens will be sent.', { message_thread_id: Number(GYM_TOPIC_ID) });
+                    }
                 } else {
-                    await ctx.reply('Sorry, I couldn\'t generate a text response.', { message_thread_id: Number(GYM_TOPIC_ID) });
+                    await ctx.telegram.editMessageText(
+                        ctx.chat.id,
+                        loadingMessage.message_id,
+                        undefined,
+                        'Sorry, I couldn\'t generate a text response.',
+                        { message_thread_id: Number(GYM_TOPIC_ID) }
+                    );
                 }
             } catch (error) {
                 console.error('Error processing image:', error);
-                await ctx.reply('Sorry, there was an error processing your workout image.', { message_thread_id: Number(GYM_TOPIC_ID) });
+                isLoading = false;
+                if (loadingMessage) {
+                    await ctx.telegram.editMessageText(
+                        ctx.chat.id,
+                        loadingMessage.message_id,
+                        undefined,
+                        'Sorry, there was an error processing your workout image.',
+                        { message_thread_id: Number(GYM_TOPIC_ID) }
+                    );
+                } else {
+                    await ctx.reply('Sorry, there was an error processing your workout image.', { message_thread_id: Number(GYM_TOPIC_ID) });
+                }
             }
         } else {
-            await ctx.reply('Please include the word "workout" or "#workout" in your caption when sending a workout photo.', { message_thread_id: Number(GYM_TOPIC_ID) });
+            await ctx.reply('Please use the /workout command followed by your wallet address when sending a workout photo.', { message_thread_id: Number(GYM_TOPIC_ID) });
         }
     } else if (ctx.message && 'photo' in ctx.message) {
-        await ctx.reply('Please include a caption with the word "workout" or "#workout" when sending a workout photo.', { message_thread_id: Number(GYM_TOPIC_ID) });
+        await ctx.reply('Please use the /workout command followed by your wallet address when sending a workout photo.', { message_thread_id: Number(GYM_TOPIC_ID) });
     }
-    return next();
 });
 bot.telegram.sendMessage(CHAT_ID, '🏦 FABS Bank is now open for business! 🏦', { message_thread_id: Number(TOPIC_ID) })
     .then(() => {
