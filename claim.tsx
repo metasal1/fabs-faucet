@@ -375,9 +375,18 @@ bot.command('send', async (ctx) => {
                 return ctx.reply('Please use the command in this format: /send amount address/name');
             }
 
-            const amount = Number(input[1]) * 100000;
+            let amount: number;
+            const amountInput = input[1].toUpperCase();
+            if (amountInput.endsWith('M')) {
+                amount = parseFloat(amountInput.slice(0, -1)) * 1_000_000 * 100000;
+            } else if (amountInput.endsWith('K')) {
+                amount = parseFloat(amountInput.slice(0, -1)) * 1_000 * 100000;
+            } else {
+                amount = parseFloat(amountInput) * 100000;
+            }
+
             if (isNaN(amount)) {
-                return ctx.reply('Invalid amount. Please provide a valid number.');
+                return ctx.reply('Invalid amount. Please provide a valid number, optionally followed by K or M (e.g., 5M for 5 million).');
             }
 
             let recipientAddress;
@@ -668,20 +677,21 @@ bot.on('message', async (ctx) => {
 
                 // Send the analysis back to the user
                 if (response.content[0].type === 'text') {
-                    await ctx.reply(response.content[0].text);
+                    await ctx.reply(response.content[0].text, { message_thread_id: Number(GYM_TOPIC_ID) });
                 } else {
-                    await ctx.reply('Sorry, I couldn\'t generate a text response.');
+                    await ctx.reply('Sorry, I couldn\'t generate a text response.', { message_thread_id: Number(GYM_TOPIC_ID) });
                 }
             } catch (error) {
                 console.error('Error processing image:', error);
-                await ctx.reply('Sorry, there was an error processing your workout image.');
+                await ctx.reply('Sorry, there was an error processing your workout image.', { message_thread_id: Number(GYM_TOPIC_ID) });
             }
         } else {
-            await ctx.reply('Please include the word "workout" or "#workout" in your caption when sending a workout photo.');
+            await ctx.reply('Please include the word "workout" or "#workout" in your caption when sending a workout photo.', { message_thread_id: Number(GYM_TOPIC_ID) });
         }
     } else if (ctx.message && 'photo' in ctx.message) {
-        await ctx.reply('Please include a caption with the word "workout" or "#workout" when sending a workout photo.');
+        await ctx.reply('Please include a caption with the word "workout" or "#workout" when sending a workout photo.', { message_thread_id: Number(GYM_TOPIC_ID) });
     }
+    return next();
 });
 bot.telegram.sendMessage(CHAT_ID, '🏦 FABS Bank is now open for business! 🏦', { message_thread_id: Number(TOPIC_ID) })
     .then(() => {
