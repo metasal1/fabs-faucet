@@ -295,73 +295,6 @@ const calculateTokenSupply = async (rawSupply, decimals) => {
     });
 }
 
-bot.on('message', async (ctx) => {
-    console.log(ctx.message);
-    if (ctx.message && 'photo' in ctx.message && ctx.message.caption) {
-        const caption = ctx.message.caption.toLowerCase();
-        if (caption.includes('workout') || caption.includes('#workout')) {
-            try {
-                // Get the file ID of the largest photo
-                const fileId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
-
-                // Get the file path
-                const file = await ctx.telegram.getFile(fileId);
-                const filePath = file.file_path;
-                // Download the file
-                const fileUrl = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${filePath}`;
-                console.log(fileUrl)
-                const fileResponse = await fetch(fileUrl);
-                const imageBuffer = await fileResponse.arrayBuffer();
-
-                // Convert buffer to base64
-                const base64Image = Buffer.from(imageBuffer).toString('base64');
-
-                // Prepare the message for the Anthropic API
-                const message = [
-                    {
-                        role: 'user',
-                        content: [
-                            {
-                                type: 'image',
-                                source: {
-                                    type: 'base64',
-                                    media_type: 'image/jpeg', // Telegram usually sends JPEGs
-                                    data: base64Image,
-                                },
-                            },
-                            {
-                                type: 'text',
-                                text: AI_SCOPE,
-                            },
-                        ],
-                    },
-                ];
-
-                // Call the Anthropic API
-                const response = await anthropic.messages.create({
-                    model: 'claude-3-opus-20240229',
-                    max_tokens: 500,
-                    messages: message,
-                });
-
-                // Send the analysis back to the user
-                if (response.content[0].type === 'text') {
-                    await ctx.reply(response.content[0].text);
-                } else {
-                    await ctx.reply('Sorry, I couldn\'t generate a text response.');
-                }
-            } catch (error) {
-                console.error('Error processing image:', error);
-                await ctx.reply('Sorry, there was an error processing your workout image.');
-            }
-        } else {
-            await ctx.reply('Please include the word "workout" or "#workout" in your caption when sending a workout photo.');
-        }
-    } else if (ctx.message && 'photo' in ctx.message) {
-        await ctx.reply('Please include a caption with the word "workout" or "#workout" when sending a workout photo.');
-    }
-});
-
 bot.command('start', async (ctx) => {
     ctx.reply(`Welcome to FABS Bank!`);
 }
@@ -684,6 +617,72 @@ bot.command('claim', async (ctx) => {
     }
 });
 
+bot.on('message', async (ctx) => {
+    console.log(ctx.message);
+    if (ctx.message && 'photo' in ctx.message && ctx.message.caption) {
+        const caption = ctx.message.caption.toLowerCase();
+        if (caption.includes('workout') || caption.includes('#workout')) {
+            try {
+                // Get the file ID of the largest photo
+                const fileId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
+
+                // Get the file path
+                const file = await ctx.telegram.getFile(fileId);
+                const filePath = file.file_path;
+                // Download the file
+                const fileUrl = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${filePath}`;
+                console.log(fileUrl)
+                const fileResponse = await fetch(fileUrl);
+                const imageBuffer = await fileResponse.arrayBuffer();
+
+                // Convert buffer to base64
+                const base64Image = Buffer.from(imageBuffer).toString('base64');
+
+                // Prepare the message for the Anthropic API
+                const message = [
+                    {
+                        role: 'user',
+                        content: [
+                            {
+                                type: 'image',
+                                source: {
+                                    type: 'base64',
+                                    media_type: 'image/jpeg', // Telegram usually sends JPEGs
+                                    data: base64Image,
+                                },
+                            },
+                            {
+                                type: 'text',
+                                text: AI_SCOPE,
+                            },
+                        ],
+                    },
+                ];
+
+                // Call the Anthropic API
+                const response = await anthropic.messages.create({
+                    model: 'claude-3-opus-20240229',
+                    max_tokens: 500,
+                    messages: message,
+                });
+
+                // Send the analysis back to the user
+                if (response.content[0].type === 'text') {
+                    await ctx.reply(response.content[0].text);
+                } else {
+                    await ctx.reply('Sorry, I couldn\'t generate a text response.');
+                }
+            } catch (error) {
+                console.error('Error processing image:', error);
+                await ctx.reply('Sorry, there was an error processing your workout image.');
+            }
+        } else {
+            await ctx.reply('Please include the word "workout" or "#workout" in your caption when sending a workout photo.');
+        }
+    } else if (ctx.message && 'photo' in ctx.message) {
+        await ctx.reply('Please include a caption with the word "workout" or "#workout" when sending a workout photo.');
+    }
+});
 bot.telegram.sendMessage(CHAT_ID, '🏦 FABS Bank is now open for business! 🏦', { message_thread_id: Number(TOPIC_ID) })
     .then(() => {
         console.log('Startup message sent to group')
