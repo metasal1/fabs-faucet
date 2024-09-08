@@ -1,9 +1,10 @@
 import { Telegraf } from 'telegraf';
+import Anthropic from '@anthropic-ai/sdk';
+
 import { Connection, PublicKey, Keypair, Transaction, TransactionMessage, VersionedTransaction, ComputeBudgetProgram, clusterApiUrl, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { createTransferInstruction, getOrCreateAssociatedTokenAccount, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import * as dotenv from 'dotenv';
 import fs from 'fs-extra';
-import { get } from 'http';
 
 dotenv.config();
 
@@ -13,11 +14,17 @@ const MINT_ADDRESS = new PublicKey(process.env.MINT || 'ErbakSHZWeLnq1hsqFvNz8Fv
 const WALLET_PRIVATE_KEY = Uint8Array.from(JSON.parse(process.env.WALLET_PRIVATE_KEY || '[]'));
 const CLAIMS_FILE = 'claims.json';
 const CLAIM_COOLDOWN = (Number(process.env.COOLDOWN) || 6) * 60 * 60 * 1000; // 24 hours in milliseconds
+const AI_KEY = process.env.AI_KEY || '';
 
 const bot = new Telegraf(process.env.BOT_TOKEN || '');
 const connection = new Connection(process.env.RPC || clusterApiUrl('mainnet-beta'), 'confirmed');
 const wallet = Keypair.fromSecretKey(WALLET_PRIVATE_KEY);
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+const anthropic = new Anthropic({
+    apiKey: AI_KEY,
+});
+
 
 const checkBurnTransactions = async () => {
     console.log('Waiting for burn transactions...');
@@ -285,6 +292,73 @@ const calculateTokenSupply = async (rawSupply, decimals) => {
         maximumFractionDigits: 0
     });
 }
+
+bot.on('message', async (ctx) => {
+    console.log(ctx.message);
+    if (ctx.message && 'photo' in ctx.message && ctx.message.caption) {
+        const caption = ctx.message.caption.toLowerCase();
+        if (caption.includes('workout') || caption.includes('#workout')) {
+            try {
+                // Get the file ID of the largest photo
+                const fileId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
+
+                // Get the file path
+                const file = await ctx.telegram.getFile(fileId);
+                const filePath = file.file_path;
+                // Download the file
+                const fileUrl = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${filePath}`;
+                console.log(fileUrl)
+                const fileResponse = await fetch(fileUrl);
+                const imageBuffer = await fileResponse.arrayBuffer();
+
+                // Convert buffer to base64
+                const base64Image = Buffer.from(imageBuffer).toString('base64');
+
+                // Prepare the message for the Anthropic API
+                const message = [
+                    {
+                        role: 'user',
+                        content: [
+                            {
+                                type: 'image',
+                                source: {
+                                    type: 'base64',
+                                    media_type: 'image/jpeg', // Telegram usually sends JPEGs
+                                    data: base64Image,
+                                },
+                            },
+                            {
+                                type: 'text',
+                                text: 'Analyze this workout image and calculate a score based on the distance, duration and intensity of the workout. The score must be between 100000 and 690000.',
+                            },
+                        ],
+                    },
+                ];
+
+                // Call the Anthropic API
+                const response = await anthropic.messages.create({
+                    model: 'claude-3-opus-20240229',
+                    max_tokens: 1000,
+                    messages: message,
+                });
+
+                // Send the analysis back to the user
+                if (response.content[0].type === 'text') {
+                    await ctx.reply(response.content[0].text);
+                } else {
+                    await ctx.reply('Sorry, I couldn\'t generate a text response.');
+                }
+            } catch (error) {
+                console.error('Error processing image:', error);
+                await ctx.reply('Sorry, there was an error processing your workout image.');
+            }
+        } else {
+            await ctx.reply('Please include the word "workout" or "#workout" in your caption when sending a workout photo.');
+        }
+    } else if (ctx.message && 'photo' in ctx.message) {
+        await ctx.reply('Please include a caption with the word "workout" or "#workout" when sending a workout photo.');
+    }
+});
 
 bot.command('start', async (ctx) => {
     ctx.reply(`Welcome to FABS Bank!`);

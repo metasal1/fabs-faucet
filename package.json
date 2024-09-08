@@ -11,6 +11,7 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.27.2",
     "@bonfida/spl-name-service": "^3.0.1",
     "@solana/spl-name-service": "^0.2.1",
     "@solana/spl-token": "^0.4.8",
