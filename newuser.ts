@@ -38,7 +38,7 @@ bot.on('new_chat_members', async (msg) => {
 
             const userIdentifier = user.first_name || user.username;
             const encodedUserIdentifier = encodeURIComponent(userIdentifier);
-            const imageUrl = `https://run.fabs.fun/api/welcome?number=${encodedUserIdentifier}`;
+            const imageUrl = `https://run.fabs.fun/api/welcome?name=${encodedUserIdentifier}`;
             const imagePath = path.join(__dirname, `welcome-image-${userIdentifier}.jpg`);
 
             await downloadImage(imageUrl, imagePath);
