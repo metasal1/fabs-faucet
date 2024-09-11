@@ -92,45 +92,54 @@ function processReferral(chatId: number, username: string, referralCode: string)
 // Function to send referral info with inline keyboard
 function sendReferralInfo(chatId: number, user: User): void {
     const referralLink = generateReferralLink(user.referralCode);
+    const escapedReferralCode = escapeMarkdown(user.referralCode);
+    const escapedReferralLink = escapeMarkdown(referralLink);
     const message = `
-Your referral code: \`${user.referralCode}\`
-Your referral link: ${referralLink}
+Your referral code: \`${escapedReferralCode}\`
+Your referral link: ${escapedReferralLink}
 
-Click on the code above to copy it.
+Click on the code above to copy it\\.
 `;
-    bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+    bot.sendMessage(chatId, message, { parse_mode: 'MarkdownV2' });
+}
+
+// Function to escape special characters for Markdown
+function escapeMarkdown(text: string): string {
+    return text.replace(/[_*[\]()~`>#+=|{}.!-]/g, '\\$&');
 }
 
 // Function to send welcome message with instructions
 function sendWelcomeMessage(chatId: number, referralCode: string, referralLink: string): void {
+    const escapedReferralCode = escapeMarkdown(referralCode);
+    const escapedReferralLink = escapeMarkdown(referralLink);
     const welcomeMessage = `
-Welcome to FABS! 🎉
+Welcome to FABS\\! 🎉
 
 Here's how to get started:
 
-1. Your referral code is: \`${referralCode}\`
-2. Your referral link is: ${referralLink}
+1\\. Your referral code is: \`${escapedReferralCode}\`
+2\\. Your referral link is: ${escapedReferralLink}
 
 Commands you can use:
-• /link - Get your referral link
-• /code - View your referral code
-• /stats - Check your referral stats
-• /wallet - View your Solana wallet address
-• /setwallet ADDRESS - Set your Solana wallet address
-• /addref CODE - Add a referral code (if you haven't already)
-• /top - See top referrers
+• /link \\- Get your referral link
+• /code \\- View your referral code
+• /stats \\- Check your referral stats
+• /wallet \\- View your Solana wallet address
+• /setwallet ADDRESS \\- Set your Solana wallet address
+• /addref CODE \\- Add a referral code \\(if you haven't already\\)
+• /top \\- See top referrers
 
 Tips:
-• Share your referral link or code with friends to earn rewards!
-• Make sure to set your Solana wallet address to receive rewards.
-• Check your stats regularly to track your progress.
+• Share your referral link or code with friends to earn rewards\\!
+• Make sure to set your Solana wallet address to receive rewards\\.
+• Check your stats regularly to track your progress\\.
 
-Need help? Just type /help for assistance.
+Need help? Just type /help for assistance\\.
 
-Happy referring with FABS! 🚀
+Happy referring with FABS\\! 🚀
 `;
 
-    bot.sendMessage(chatId, welcomeMessage, { parse_mode: 'Markdown' });
+    bot.sendMessage(chatId, welcomeMessage, { parse_mode: 'MarkdownV2' });
 }
 
 // Handle /ref command (previously /start)
