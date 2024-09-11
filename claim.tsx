@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 // Load environment variables
 dotenv.config();
 
-const token: string = process.env.BOT_TOKEN || '';
+const token: string = process.env.BANK_BOT_TOKEN || '';
 const botUsername: string = process.env.BOT_USERNAME || '';
 
 if (!token || !botUsername) {
